@@ -25,6 +25,10 @@ import (
 	"github.com/go-spring/spring-web"
 )
 
+// 一般来讲，Starter 包里面只允许包含 init 函数，但是 Web 包比较特殊，它必须配
+// 合 echo 或 gin 的 Starter 包一起使用才行，所以为了避免显式导入 Web 包采取了
+// 通过 echo 或 gin 依赖的方式自动导入该包，其他 Starter 包还是要符合一般原则的。
+
 func init() {
 
 	SpringBoot.RegisterNameBean("web-server", SpringWeb.NewWebServer()).
@@ -62,15 +66,16 @@ func (starter *WebServerStarter) OnStartApplication(ctx SpringBoot.ApplicationCo
 	// 处理 WebServer 级别的过滤器，排除不满足条件的过滤器
 	starter.WebServer.ResetFilters(starter.resolveFilters(ctx, starter.WebServer.Filters()))
 
-	for _, container := range starter.Containers {
+	for _, c := range starter.Containers {
 
 		// 处理 WebContainer 级别的过滤器，排除不满足条件的过滤器
-		container.ResetFilters(starter.resolveFilters(ctx, container.GetFilters()))
+		c.ResetFilters(starter.resolveFilters(ctx, c.GetFilters()))
 
 		for _, mapping := range SpringBoot.DefaultWebMapping.Mappings {
 
 			// 查看路由的端口是否匹配
-			if SpringUtils.ContainsInt(mapping.Ports(), container.Config().Port) < 0 {
+			ports := mapping.Ports()
+			if len(ports) > 0 && SpringUtils.ContainsInt(ports, c.Config().Port) < 0 {
 				continue
 			}
 
@@ -82,7 +87,7 @@ func (starter *WebServerStarter) OnStartApplication(ctx SpringBoot.ApplicationCo
 			// 处理 Mapping 级别的过滤器，排除不满足条件的过滤器
 			filters := starter.resolveFilters(ctx, mapping.Filters())
 			mapper := SpringWeb.NewMapper(mapping.Method(), mapping.Path(), mapping.Handler(), filters)
-			container.AddMapper(mapper.WithSwagger(mapping.Swagger()))
+			c.AddMapper(mapper.WithSwagger(mapping.Swagger()))
 		}
 	}
 
